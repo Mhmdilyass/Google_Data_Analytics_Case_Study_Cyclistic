@@ -1,0 +1,282 @@
+---
+title: 'Case Study : How does a bicycle sharing business achieve success?'
+author: "Muhamad Ilyas"
+date: "2023-09-02"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Scenario
+
+In 2016, Cyclistic launched a successful bike sharing offering. Bikes can be accessed from one station and returned to another at any time in the system.
+
+Until now, Cyclistic's marketing strategy relied on building general awareness and appealing to a broad consumer segment. One approach that helps make this happen is price flexibility: one-way tickets, full-day passes, and annual memberships. Customers who buy a one way ticket or a full day ticket are referred to as casual riders. Customers who purchase an annual membership are members of Cyclistic.
+
+The marketing director believed that the company's future success depended on maximizing the number of annual memberships.
+
+Therefore, Our team have been asked to analyze How do annual members and regular riders use bicycles differently? From this insight, our team will design a new marketing strategy to convert regular riders into annual members.
+
+====================================================================
+
+The case study follows the six step data analysis process :\
+- Ask - Prepare - Process - Analyze - Share - Act
+
+# 1. Ask
+
+## Business Task : Analyze Cyclistic data to gain insight and help guide marketing strategy to develop strategies to convert casual riders into annual members.
+
+-   Primary Stakeholders : The director of marketing Lily Moreno and Cyclistic executive team.
+
+-   Cyclistic Marketing Analytiics Team
+
+# 2. Prepare
+
+### Install required packages
+
+-   tidyverse for data import and wrangling
+-   lubridate for date functions
+-   ggplot for visualization
+-   readr for import data set
+-   dplyr for manipulate data
+-   janitor for examining and cleaning dirty data
+
+```{r Install & Load packages, eval=FALSE, include=FALSE}
+install.packages("tidyverse")
+install.packages("skimr")
+install.packages("ggplot")
+install.packages("readr")
+install.packages("dplyr")
+install.packages("janitor")
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(janitor)
+```
+
+### Data Source
+
+Data source from 12 Month (January 2022 to December 2022) of Cyclistic trip. Data has been provided by Motivate International Inc. [data source](https://divvy-tripdata.s3.amazonaws.com/index.html) with [license](https://ride.divvybikes.com/data-license-agreement)
+
+Upload Cyclistic Data sets(csv files)
+
+```{r Combine the data, eval=FALSE, include=FALSE}
+getwd()
+
+#Combine the data from Jan 2022 to Dec 2022 into one data frame.
+all_trips_2022 <- rbind(
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202201-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202202-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202203-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202204-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202205-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202206-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202207-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202208-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202209-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202210-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202211-divvy-tripdata.csv"),
+ read_csv("C:/Users/Shaquille/Documents/Cyclistic/Bike_data/202212-divvy-tripdata.csv"))
+```
+
+### ROCCC
+
+The dataset has 12 CSV files, with a total of 13 columns and 5.6 million rows. The data also follows the ROCCC approach, namely:
+
+-   Reliability: the data includes complete and accurate driving data from Divvy. Divvy is a Chicago Department of Transportation (CDOT) program, which owns city bikes, stations, and vehicles
+
+-   Original: the data is from Motivate International Inc, which operates bike sharing service Divvy City of Chicago.
+
+-   Comprehensive: Data includes bike type, start and end station name, start and end time, station ID, station longitude and latitude, membership type.
+
+-   Current: the latest data as of July 2023
+
+-   Cited: the data is quoted and is under the current license agreement.
+
+## Limitations of dataset
+
+-   Personal information: Records have limitations on personally identifiable information, so we have no information on whether the trip was by a single driver or the same driver who has driven more than once as a casual or member riders.
+
+-   NA values : after checking sum(is.na(all_trips_2022_v2)), we see the dataset has 3,463,328 NA values, such as in starting_station_id, end_station_id. Further investigation we noticed the NA values are mostly under rideable type: electric bike. Future investigations may be needed by the station names are not entered for electric bike.
+
+```{r echo=FALSE}
+sum(is.na(all_trips_2022))
+```
+
+```{r echo=FALSE}
+head(count(all_trips_2022, start_station_name, member_casual,  rideable_type, sort= TRUE))
+head(count(all_trips_2022, end_station_name, member_casual,  rideable_type, sort= TRUE))
+
+```
+
+# 3. Process
+
+Examine the data :
+
+```{r}
+head(all_trips_2022)
+dim(all_trips_2022)
+colnames(all_trips_2022)
+summary(all_trips_2022)
+```
+
+Add columns that list the date, month, day and year of each ride :
+
+```{r}
+# This will allow us to aggregate ride data for each month and day. Before completing these operations we could only aggregate at the ride level
+all_trips_2022$date <- as.Date(all_trips_2022$started_at) # Default format is yyyy-mm-dd
+all_trips_2022$month <- format(as.Date(all_trips_2022$date), "%m")
+all_trips_2022$day <- format(as.Date(all_trips_2022$date), "%d")
+all_trips_2022$year <- format(as.Date(all_trips_2022$date), "%Y")
+all_trips_2022$day_of_week <- format(as.Date(all_trips_2022$date), "%A")
+```
+
+Add column "ride_length", which is the length of each ride from ended_at minus started_at, and format as HH:MM:SS.
+
+```{r}
+#Add column ride_length
+all_trips_2022 <- all_trips_2022 %>% mutate(ride_length = ended_at - started_at)
+
+#Convert from difftime to numeric values
+all_trips_2022$ride_length <- as.numeric(as.character(all_trips_2022$ride_length))
+is.numeric(all_trips_2022$ride_length)
+
+#Convert seconds to minutes
+all_trips_2022$ride_length <- as.numeric(all_trips_2022$ride_length/60)
+```
+
+Remove bad data
+
+The data frame includes a few hundred entries when bikes were taken out of docks and checked for quality by Divvy or ride_length was negative
+
+```{r}
+#we will create a new version of the dataframe (v2) since data is being removed 
+all_trips_2022_v2 <- all_trips_2022[!(all_trips_2022$start_station_name == "HQ QR" | all_trips_2022$ride_length<0),]
+```
+
+```{r}
+#check if there is any null values in data
+sum(is.na(all_trips_2022_v2))
+```
+
+Remove NA values for clean data to prepare for analysis
+
+```{r}
+#erase the null values 
+all_trips_2022_v2 <- all_trips_2022_v2 %>% 
+  drop_na()
+```
+
+## 4. Analyze
+
+Analysis on ride length to check min, max, mean and any outlier on the ride length
+
+```{r}
+#Using summary to check min, max, median and mean
+summary(all_trips_2022_v2$ride_length)
+```
+
+Aggregate to analyze the data based on user type: member vs casual
+
+```{r}
+#Compare members and casual users
+aggregate(all_trips_2022_v2$ride_length ~ all_trips_2022_v2$member_casual, FUN=mean)
+aggregate(all_trips_2022_v2$ride_length ~ all_trips_2022_v2$member_casual, FUN=median) 
+
+#See the average ride time by each day for members vs casual users
+aggregate(all_trips_2022_v2$ride_length ~ all_trips_2022_v2$member_casual + 
+            all_trips_2022_v2$day_of_week, FUN=mean)
+```
+
+Visualize ridership by user types and average duration
+
+```{r}
+# Number of rides by average duration
+all_trips_2022_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n(),average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+
+Analyze ridership data by user types and day of the week
+
+```{r}
+all_trips_2022_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%                  #groups by usertype and weekday
+  summarise(number_of_rides = n()				#calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>% 	         	# calculates the average duration
+  arrange(member_casual, weekday)								        # sorts by member_casual and weekday
+```
+
+Visualize ridership by user types and day of the week
+
+```{r}
+par(mfrow=c(2,2))
+
+# Number of rides by rider types
+all_trips_2022_v2 %>%
+  mutate(weekday = wday(started_at, label=TRUE)) %>% 
+  group_by(member_casual, weekday) %>%
+  summarise(number_of_rides = n(), average_duration=mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x=weekday, y=number_of_rides, fill=member_casual))+
+  geom_col(position="dodge")
+```
+
+For the complete R code and analyze the data using ggplot for graphical interpretation, please view the rmd file on this link [Click here](http://rpubs.com/mhmdilyass_/Cyclistic_Chicago "R Code Link")
+
+## 5. Share
+
+-   [**Tableau Dashboard**](https://public.tableau.com/views/GoogleDataAnalyticsCaseStudyCyclistic/Home?:language=en-GB&:display_count=n&:origin=viz_share_link)
+
+-   [**Power Point Presentation**](https://www.canva.com/design/DAFtHWDc7VU/ruu8vdrwNbuw83GtctnmjA/view?utm_content=DAFtHWDc7VU&utm_campaign=designshare&utm_medium=link&utm_source=publishsharelink)
+
+## 6. Act
+
+Conclusion based on analysis :
+
+-   Cyclistic has a total number of trips of 4.37 million with **member users dominating the number of trips** at 59.76% compared to regular users at 40.24%.
+
+-   Both members and ordinary users **prefer to use classic bike**
+
+-   The **highest number of trips occurred in July** 2022 and the **lowest occurred in January and February due to winter**
+
+-   Most **members travel on weekdays** and **casual users during weekends**
+
+-   **Members mostly travel during peak hours** to go to work or college and return home, while **casual users mostly travel from morning to﻿ evening**
+
+-   Members have consistent but shorter trip durations than regular users
+
+-   **Streeter Dr & Grand Ave** is the most popular starting and ending station
+
+Marketing recommendation :
+
+1.  **Summer Pass**
+
+    Summer is the highest season for the number of riders, both members and casual users. The summer pass is used for casual users who want to use cyclistic services at a lower price than annual pass member and casual user fees, but the summer pass can only be used in the summer
+
+2.  **Weekend Express**
+
+    The weekend express pass is intended for casual users who mainly use the cyclistic service on weekends. Weekend pass can only be used on weekends on Saturday and Sunday, weekend pass will be cheaper than annual membership
+
+3.  **Cyclist Points**
+
+    Cyclist points are used to reward both user. Points will be obtained if users use the service, invite other users, join as members, use a different type of bicycle each week, share posts about cyclistic on social media and so on.
+
+    There are minimum points to get rewards provided by Cyclistic, such as free trips, annual membership discounts and other bonuses
+
+4.  **"Cyclist Bud" Referral**
+
+    "Cyclist Bud" is a referral program for member users to attract or invite regular users to purchase membership. With this referral code, both users will get benefits if regular users buy membership.
+
+    The benefits can be in the form of cyclist points, membership discounts, exclusive items if the user successfully invites approximately 50 regular users, and so on.
